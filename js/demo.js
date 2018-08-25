@@ -1,32 +1,3 @@
-/*
- * Copyright (c) 2009 The Chromium Authors. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *    * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *    * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *    * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
 
 var gl = null;
 var g_width = 0;
@@ -60,7 +31,9 @@ var projection = new Matrix4x4();
 
 var controller = null;
 
+//function executed on load
 function main() {
+    //obtaining the canvas element
     var c = document.getElementById("canvas");
 
     //c = WebGLDebugUtils.makeLostContextSimulatingCanvas(c);
@@ -73,7 +46,8 @@ function main() {
 	var ratio = window.devicePixelRatio ? window.devicePixelRatio : 1;
 	c.width = 800 * ratio;
 	c.height = 600 * ratio;
-    gl = WebGLUtils.setupWebGL(c);
+    // Creates a webgl context. If it fails it will show an error in the canvas.
+    gl = WebGLUtils.setupWebGL(c); //replaces manually setting up the context
     if (!gl)
         return;
     g_width = c.width;
@@ -124,24 +98,28 @@ function init() {
     gl.enable(gl.DEPTH_TEST);
     // Can use this to make the background opaque
     // gl.clearColor(0.3, 0.2, 0.2, 1.);
-    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);//sets up the canvas color, not applied until the gl.clear function is called
     initTeapot();
     initShaders();
     //g_bumpTexture = loadTexture("bump.jpg");
     //g_envTexture = loadCubeMap("skybox", "jpg");
-    draw();
+    draw();//takes care of the initialization of the viewport, so that webGL knows its displaying to a g_width and g_height element.
 }
 
 function initTeapot() {
+    //create a buffer: a chunk of memory on the gpu
     g_vbo = gl.createBuffer();
+    //binding the active buffer that we are using as an array buffer (array buffer: compact binary data that can be operated on very quickly)
     gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo);
+    //we dont specify the buffer to the bufferData function because it uses the last active buffer
     gl.bufferData(gl.ARRAY_BUFFER,
                   teapotPositions.byteLength +
                   teapotNormals.byteLength +
                   teapotTangents.byteLength +
                   teapotBinormals.byteLength +
                   teapotTexCoords.byteLength,
-                  gl.STATIC_DRAW);
+                  gl.STATIC_DRAW);// Static Draw means we are sending the information from the cpu memory to the gpu memory once. Not to be changed again.
+
     g_normalsOffset = teapotPositions.byteLength;
     g_tangentsOffset = g_normalsOffset + teapotNormals.byteLength;
     g_binormalsOffset = g_tangentsOffset + teapotTangents.byteLength;
@@ -158,6 +136,7 @@ function initTeapot() {
     g_numElements = teapotIndices.length;
 }
 
+//Shader source which tell WebGl how to display our 3D objects on a 2D screen
 var bumpReflectVertexSource = [
     "attribute vec3 g_Position;",
     "attribute vec3 g_TexCoord0;",
@@ -187,6 +166,7 @@ var bumpReflectVertexSource = [
     "}"
     ].join("\n");
 
+//Shader source which tell WebGl how to display our 3D objects on a 2D screen
 var bumpReflectFragmentSource = [
     "precision mediump float;\n",
     "const float bumpHeight = 0.2;",
@@ -214,9 +194,12 @@ var bumpReflectFragmentSource = [
     "}"
     ].join("\n");
 
+/*
+function used to create the shaders and check for errors.
+*/
 function loadShader(type, shaderSrc) {
     var shader = gl.createShader(type);
-    // Load the shader source
+    // Load the shader source - set the source of the shader to the one we stored in the variables above.
     gl.shaderSource(shader, shaderSrc);
     // Compile the shader
     gl.compileShader(shader);
@@ -232,21 +215,27 @@ function loadShader(type, shaderSrc) {
 }
 
 function initShaders() {
+
+    //Create the shaders
     var vertexShader = loadShader(gl.VERTEX_SHADER, bumpReflectVertexSource);
     var fragmentShader = loadShader(gl.FRAGMENT_SHADER, bumpReflectFragmentSource);
-    // Create the program object
+
+    // Create the program object (the entire program, a shader is just an individual component), and tell the program which shaders to use
     var programObject = gl.createProgram();
     gl.attachShader(programObject, vertexShader);
     gl.attachShader(programObject, fragmentShader);
+
     // Bind attributes
     gl.bindAttribLocation(programObject, 0, "g_Position");
     gl.bindAttribLocation(programObject, 1, "g_TexCoord0");
     gl.bindAttribLocation(programObject, 2, "g_Tangent");
     gl.bindAttribLocation(programObject, 3, "g_Binormal");
     gl.bindAttribLocation(programObject, 4, "g_Normal");
+
     // Link the program
     gl.linkProgram(programObject);
-    // Check the link status
+
+    // Check the link status for errors
     var linked = gl.getProgramParameter(programObject, gl.LINK_STATUS);
     if (!linked && !gl.isContextLost()) {
         var infoLog = gl.getProgramInfoLog(programObject);
@@ -255,7 +244,8 @@ function initShaders() {
         return;
     }
     g_programObject = programObject;
-    // Look up uniform locations
+
+    // Look up uniform locations (uniforms are constants that stay the same between the vertex and fragment shaders) - we need to inform the shader which variables correspond to which parts of the data we sent to the gpu
     g_worldLoc = gl.getUniformLocation(g_programObject, "world");
     g_worldInverseTransposeLoc = gl.getUniformLocation(g_programObject, "worldInverseTranspose");
     g_worldViewProjLoc = gl.getUniformLocation(g_programObject, "worldViewProj");
@@ -267,6 +257,7 @@ function initShaders() {
 
 function draw() {
     // Note: the viewport is automatically set up to cover the entire Canvas.
+    //sets the color and depth of the canvas
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     checkGLError();
 
@@ -316,10 +307,18 @@ function draw() {
     gl.uniform1i(g_envSamplerLoc, 1);
     checkGLError();
 
-    // Bind and set up vertex streams
+    // Bind and set up vertex streams - specify the layout of the attributes
     gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo);
+    /*
+    0: attribute location
+    3: number of elements per attribute
+    gl.FLOAT: type of each element
+    false: whether or not the data is normalized
+    0: size of an individual vertex
+    0: offset from the beginning of a single vertex to this attribute
+    */
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(0);
+    gl.enableVertexAttribArray(0);//enables attribute for use
     gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, g_texCoordsOffset);
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, g_tangentsOffset);
