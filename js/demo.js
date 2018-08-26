@@ -5,6 +5,7 @@ var g_height = 0;
 var g_bumpTexture = null;
 var g_envTexture = null;
 var g_programObject = null;
+var g_planeShader = null;
 var g_vbo = null;
 var g_elementVbo = null;
 var g_normalsOffset = 0;
@@ -30,6 +31,12 @@ var view = new Matrix4x4();
 var projection = new Matrix4x4();
 
 var controller = null;
+
+// Here's where we call the routine that builds all the
+// objects we'll be drawing.
+var buffers = null;
+
+
 
 //function executed on load
 function main() {
@@ -101,6 +108,8 @@ function init() {
     gl.clearColor(0.0, 0.0, 0.0, 0.0);//sets up the canvas color, not applied until the gl.clear function is called
     initTeapot();
     initShaders();
+    buffers = initBuffers(gl);
+    g_planeShader = initShaderProgram(gl, vsSource, fsSource);
     g_bumpTexture = loadTexture("images/ceramic.bmp");
     g_envTexture = loadCubeMap();
     draw();//takes care of the initialization of the viewport, so that webGL knows its displaying to a g_width and g_height element.
@@ -194,6 +203,25 @@ var bumpReflectFragmentSource = [
     "}"
     ].join("\n");
 
+
+// Vertex shader program
+
+var vsSource = "attribute vec4 aVertexPosition;\n" +
+    "    attribute vec4 aVertexColor;\n" +
+    "    uniform mat4 uModelViewMatrix;\n" +
+    "    uniform mat4 uProjectionMatrix;\n" +
+    "    varying lowp vec4 vColor;\n" +
+    "    void main(void) {\n" +
+    "      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;\n" +
+    "      vColor = aVertexColor;\n" +
+    "    }";
+
+// Fragment shader program
+
+var fsSource = "varying lowp vec4 vColor;\n" +
+    "    void main(void) {\n" +
+    "      gl_FragColor = vColor;\n" +
+    "    }";
 /*
 function used to create the shaders and check for errors.
 */
@@ -213,6 +241,7 @@ function loadShader(type, shaderSrc) {
     }
     return shader;
 }
+
 
 function initShaders() {
 
@@ -254,6 +283,30 @@ function initShaders() {
     g_envSamplerLoc = gl.getUniformLocation(g_programObject, "envSampler");
     checkGLError();
 
+}
+
+//
+// Initialize a shader program, so WebGL knows how to draw our data
+//
+function initShaderProgram(gl, vsSource, fsSource) {
+    var vertexShader = loadShader(gl.VERTEX_SHADER, vsSource);
+    var fragmentShader = loadShader(gl.FRAGMENT_SHADER, fsSource);
+
+    // Create the shader program
+
+    var shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    // If creating the shader program failed, alert
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+        return null;
+    }
+
+    return shaderProgram;
 }
 
 function draw() {
@@ -331,6 +384,21 @@ function draw() {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, g_elementVbo);
     checkGLError();
     gl.drawElements(gl.TRIANGLES, g_numElements, gl.UNSIGNED_SHORT, 0);
+
+
+    //draw plane
+    var programInfo = {
+        program: g_planeShader,
+        attribLocations: {
+            vertexPosition: gl.getAttribLocation(g_planeShader, 'aVertexPosition'),
+            vertexColor: gl.getAttribLocation(g_planeShader, 'aVertexColor')
+        },
+        uniformLocations: {
+            projectionMatrix: gl.getUniformLocation(g_planeShader, 'uProjectionMatrix'),
+            modelViewMatrix: gl.getUniformLocation(g_planeShader, 'uModelViewMatrix')
+        }
+    };
+    drawPlane(gl, programInfo, buffers);
 }
 
 // Array of images curently loading
@@ -385,11 +453,11 @@ function loadCubeMap() {
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     checkGLError();
     var faces = [["posx", gl.TEXTURE_CUBE_MAP_POSITIVE_X],
-                 ["negx", gl.TEXTURE_CUBE_MAP_NEGATIVE_X],
-                 ["posy", gl.TEXTURE_CUBE_MAP_POSITIVE_Y],
-                 ["negy", gl.TEXTURE_CUBE_MAP_NEGATIVE_Y],
-                 ["posz", gl.TEXTURE_CUBE_MAP_POSITIVE_Z],
-                 ["negz", gl.TEXTURE_CUBE_MAP_NEGATIVE_Z]];
+        ["negx", gl.TEXTURE_CUBE_MAP_NEGATIVE_X],
+        ["posy", gl.TEXTURE_CUBE_MAP_POSITIVE_Y],
+        ["negy", gl.TEXTURE_CUBE_MAP_NEGATIVE_Y],
+        ["posz", gl.TEXTURE_CUBE_MAP_POSITIVE_Z],
+        ["negz", gl.TEXTURE_CUBE_MAP_NEGATIVE_Z]];
     for (var i = 0; i < faces.length; i++) {
         var url = "images/ceramic.bmp";
         var face = faces[i][1];
@@ -406,7 +474,7 @@ function loadCubeMap() {
                 gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
                 gl.texImage2D(
-                   face, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                    face, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 checkGLError();
                 draw();
             }
@@ -414,4 +482,169 @@ function loadCubeMap() {
         image.src = url;
     }
     return texture;
+}
+
+//
+// Draw the scene.
+//
+function drawPlane(gl, programInfo, buffers) {
+    // gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
+    // gl.clearDepth(1.0);                 // Clear everything
+    gl.enable(gl.DEPTH_TEST);           // Enable depth testing
+    gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+
+    // Clear the canvas before we start drawing on it.
+
+    // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Create a perspective matrix, a special matrix that is
+    // used to simulate the distortion of perspective in a camera.
+    // Our field of view is 45 degrees, with a width/height
+    // ratio that matches the display size of the canvas
+    // and we only want to see objects between 0.1 units
+    // and 100 units away from the camera.
+
+    var fieldOfView = 45 * Math.PI / 180;   // in radians
+    var aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+    var zNear = 0.1;
+    var zFar = 100.0;
+    var projectionMatrix = mat4.create();
+
+    // note: glmatrix.js always has the first argument
+    // as the destination to receive the result.
+    mat4.perspective(projectionMatrix,
+        fieldOfView,
+        aspect,
+        zNear,
+        zFar);
+
+    // Set the drawing position to the "identity" point, which is
+    // the center of the scene.
+    var modelViewMatrix = mat4.create();
+
+    // Now move the drawing position a bit to where we want to
+    // start drawing the square.
+
+    mat4.translate(modelViewMatrix,     // destination matrix
+        modelViewMatrix,     // matrix to translate
+        [-0.0, 0.0, -6.0]);  // amount to translate
+
+    //Rota el square
+    mat4.rotate(modelViewMatrix,  // destination matrix
+        modelViewMatrix,  // matrix to rotate
+        -1,   // amount to rotate in radians
+        [1, 0, 0]);       // axis to rotate around
+
+    // Tell WebGL how to pull out the positions from the position
+    // buffer into the vertexPosition attribute
+    {
+        var numComponents = 2;
+        var type = gl.FLOAT;
+        var normalize = false;
+        var stride = 0;
+        var offset = 0;
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+        gl.vertexAttribPointer(
+            programInfo.attribLocations.vertexPosition,
+            numComponents,
+            type,
+            normalize,
+            stride,
+            offset);
+        gl.enableVertexAttribArray(
+            programInfo.attribLocations.vertexPosition);
+    }
+
+    // Tell WebGL how to pull out the colors from the color buffer
+    // into the vertexColor attribute.
+    {
+        var numComponents = 4;
+        var type = gl.FLOAT;
+        var normalize = false;
+        var stride = 0;
+        var offset = 0;
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.color);
+        gl.vertexAttribPointer(
+            programInfo.attribLocations.vertexColor,
+            numComponents,
+            type,
+            normalize,
+            stride,
+            offset);
+        gl.enableVertexAttribArray(
+            programInfo.attribLocations.vertexColor);
+    }
+
+    // Tell WebGL to use our program when drawing
+
+    gl.useProgram(programInfo.program);
+
+    // Set the shader uniforms
+
+    gl.uniformMatrix4fv(
+        programInfo.uniformLocations.projectionMatrix,
+        false,
+        projectionMatrix);
+    gl.uniformMatrix4fv(
+        programInfo.uniformLocations.modelViewMatrix,
+        false,
+        modelViewMatrix);
+
+    {
+        var offset = 0;
+        var vertexCount = 4;
+        gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+    }
+}
+
+
+//
+// initBuffers
+//
+// Initialize the buffers we'll need. For this demo, we just
+// have one object -- a simple two-dimensional square.
+//
+function initBuffers(gl) {
+
+    // Create a buffer for the square's positions.
+
+    var positionBuffer = gl.createBuffer();
+
+    // Select the positionBuffer as the one to apply buffer
+    // operations to from here out.
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+    // Now create an array of positions for the square.
+
+    var positions = [
+        2.0,  1.25,
+        -2.0,  1.25,
+        2.0, -2.75,
+        -2.0, -2.75
+    ];
+
+    // Now pass the list of positions into WebGL to build the
+    // shape. We do this by creating a Float32Array from the
+    // JavaScript array, then use it to fill the current buffer.
+
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+    // Now set up the colors for the vertices
+
+    var colors = [
+        1.0,  1.0,  1.0,  1.0,    // white
+        1.0,  0.0,  0.0,  1.0,    // red
+        0.0,  1.0,  0.0,  1.0,    // green
+        0.0,  0.0,  1.0,  1.0    // blue
+    ];
+
+    var colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+
+    return {
+        position: positionBuffer,
+        color: colorBuffer
+    };
 }
