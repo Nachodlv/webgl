@@ -101,8 +101,8 @@ function init() {
     gl.clearColor(0.0, 0.0, 0.0, 0.0);//sets up the canvas color, not applied until the gl.clear function is called
     initTeapot();
     initShaders();
-    g_bumpTexture = loadTexture("prueba.jpg");
-    g_envTexture = loadCubeMap("nada","nada");
+    g_bumpTexture = loadTexture("images/ceramic.bmp");
+    g_envTexture = loadCubeMap();
     draw();//takes care of the initialization of the viewport, so that webGL knows its displaying to a g_width and g_height element.
 }
 
@@ -369,7 +369,7 @@ function loadTexture(src) {
     return texture;
 }
 
-function loadCubeMap(base, suffix) {
+function loadCubeMap() {
     var texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
     checkGLError();
@@ -391,7 +391,7 @@ function loadCubeMap(base, suffix) {
                  ["posz", gl.TEXTURE_CUBE_MAP_POSITIVE_Z],
                  ["negz", gl.TEXTURE_CUBE_MAP_NEGATIVE_Z]];
     for (var i = 0; i < faces.length; i++) {
-        var url = "txWood.bmp";
+        var url = "images/ceramic.bmp";
         var face = faces[i][1];
         ++g_pendingTextureLoads;
         var image = new Image();
