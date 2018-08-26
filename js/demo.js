@@ -24,11 +24,11 @@ var g_envSamplerLoc = 0;
 
 var g_pendingTextureLoads = 0;
 
-// The "model" matrix is the "world" matrix in Standard Annotations
-// and Semantics
+// The "model" matrix is the "world" matrix in Standard Annotations and Semantics
+// matrixs represent some mutation or transformation of a vector.
 var model = new Matrix4x4();
-var view = new Matrix4x4();
-var projection = new Matrix4x4();
+var view = new Matrix4x4(); //Camera
+var projection = new Matrix4x4(); //3D to 2D
 
 var controller = null;
 
@@ -341,6 +341,10 @@ function draw() {
 
     // Compute necessary matrices
     var mvp = new Matrix4x4();
+    /*
+    * multiplying multiple matrixs is the same as applying them separately
+    * the order of application is from right to left
+    */
     mvp.multiply(model);
     mvp.multiply(view);
     mvp.multiply(projection);
@@ -349,7 +353,7 @@ function draw() {
     var viewInverse = view.inverse();
 
     // Set up uniforms
-    gl.uniformMatrix4fv(g_worldLoc, gl.FALSE, new Float32Array(model.elements));
+    gl.uniformMatrix4fv(g_worldLoc, gl.FALSE, new Float32Array(model.elements));//gl.True to transpose matrix (does not work with webGl)
     gl.uniformMatrix4fv(g_worldInverseTransposeLoc, gl.FALSE, new Float32Array(worldInverseTranspose.elements));
     gl.uniformMatrix4fv(g_worldViewProjLoc, gl.FALSE, new Float32Array(mvp.elements));
     gl.uniformMatrix4fv(g_viewInverseLoc, gl.FALSE, new Float32Array(viewInverse.elements));

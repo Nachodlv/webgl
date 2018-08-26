@@ -16,6 +16,14 @@
 // A simple 4x4 Matrix utility class
 //
 
+/*
+* Translation: move in space.
+* Rotations: spins.
+* Scale: increase/decrease size
+* View Transform: adjusts virtual camara
+* Projection: Map 3D virtual space to 2D screen space
+*/
+
 function Matrix4x4() {
   this.elements = Array(16);
   this.loadIdentity();
